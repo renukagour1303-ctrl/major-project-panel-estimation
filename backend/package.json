@@ -1,0 +1,26 @@
+{
+  "name": "solar-calculator-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Sungroves Innovations LLP AI-Powered Solar Calculator Web Tool",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "solar",
+    "calculator",
+    "sungroves",
+    "express",
+    "api"
+  ],
+  "author": "Sungroves Innovations LLP Project Team",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
