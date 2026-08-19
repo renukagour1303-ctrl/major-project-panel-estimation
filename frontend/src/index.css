@@ -1807,6 +1807,101 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ============================================================
+   LEAFLET.DRAW TOOLBAR OVERRIDES
+   Keep drawing UI consistent with the project brand theme.
+   ============================================================ */
+
+/* Polygon draw toolbar icon size fix */
+.leaflet-draw-toolbar a {
+  background-size: 270px 30px !important;
+}
+
+/* Draw toolbar container */
+.leaflet-draw.leaflet-control {
+  display: none; /* Hide native Leaflet.draw toolbar — we use our own custom buttons */
+}
+
+/* Drawn polygon style (applied inline in JS, this is a fallback) */
+.leaflet-interactive {
+  cursor: crosshair;
+}
+
+/* Vertex / midpoint handles while editing */
+.leaflet-editing-icon {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #f59e0b !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 0 4px rgba(0,0,0,0.4) !important;
+  margin-left: -5px !important;
+  margin-top: -5px !important;
+}
+
+/* Ghost polygon while drawing (before closing shape) */
+.leaflet-overlay-pane path.leaflet-interactive {
+  stroke: #10b981;
+  stroke-width: 2.5px;
+  fill: #10b981;
+  fill-opacity: 0.2;
+}
+
+/* Delete icon styling */
+.leaflet-draw-edit-remove {
+  display: none; /* Handled by our custom Clear Outline button */
+}
+
+/* Tooltip drawn by Leaflet.draw ("Click to start drawing shape", etc.) */
+.leaflet-draw-tooltip {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: #f1f5f9;
+  font-size: 0.8125rem;
+  font-family: var(--font-body);
+  padding: 0.4rem 0.75rem;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+.leaflet-draw-tooltip::before {
+  border-right-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+/* Drawing hint tag in the toolbar */
+.drawing-hint-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.drawing-hint-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--accent-emerald);
+}
+
+.drawing-hint-idle {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Primary draw button variant */
+.toolbar-btn-primary {
+  background: var(--primary-green) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-green) !important;
+}
+
+.toolbar-btn-primary:hover:not(:disabled) {
+  background: var(--primary-green-hover) !important;
+  color: #ffffff !important;
+}
+
+/* ============================================================
    RESPONSIVE DESIGN (MOBILE & TABLET BREAKPOINTS)
    ============================================================ */
 

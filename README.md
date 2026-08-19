@@ -141,7 +141,7 @@ The Vite development server will start on `http://localhost:5173`.
 - [x] **Chunk 2: Frontend Shell & Navigation** - Step-by-step wizard workflow layout and responsive navigation.
 - [x] **Chunk 3: Location Detection** - GPS geolocation, reverse geocoding, manual Nominatim search, and coordinate validation.
 - [x] **Chunk 4: Satellite Map Integration** - Leaflet map with high-resolution Esri World Imagery tiles and dynamic centering.
-- [ ] **Chunk 5: Roof Drawing** - Leaflet.draw polygon tracing, editing, and deletion.
+- [x] **Chunk 5: Roof Drawing** - Leaflet.draw polygon tracing, editing, and deletion with parent state propagation.
 - [ ] **Chunk 6: Roof Area Calculation** - Turf.js polygon area and 75% usable space logic.
 - [ ] **Chunk 7: Electricity Inputs** - Bill amount, tariff rate, and panel wattage selection.
 - [ ] **Chunk 8: Calculation Engine** - Deterministic solar calculation formulas and unit tests.

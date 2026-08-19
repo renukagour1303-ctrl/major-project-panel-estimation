@@ -40,9 +40,11 @@ export default function App() {
   });
 
   const [roofData, setRoofData] = useState({
-    traced: true,
-    areaSqM: 80,
-    usableAreaSqM: 60
+    traced: false,
+    polygonGeoJSON: null,    // set by Chunk 5 (RoofTraceStep)
+    polygonLatLngs: null,    // set by Chunk 5
+    areaSqM: 0,              // computed by Chunk 6 (Turf.js)
+    usableAreaSqM: 0         // computed by Chunk 6 (areaSqM × 0.75)
   });
 
   const [inputData, setInputData] = useState({
