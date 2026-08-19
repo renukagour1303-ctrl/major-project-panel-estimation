@@ -1,8 +1,14 @@
 import React from 'react';
-import { PenTool, Edit3, Trash2, RotateCcw, CheckCircle, Info, Layers, AlertCircle } from 'lucide-react';
+import { PenTool, Edit3, Trash2, RotateCcw, Info, AlertCircle } from 'lucide-react';
+import RoofMap from '../components/RoofMap.jsx';
 
-export default function RoofTraceStep({ roofData, updateRoofData }) {
-  // Set default placeholder area if traced
+export default function RoofTraceStep({ roofData, updateRoofData, locationData }) {
+  // Extract confirmed coordinates from Step 1 locationData
+  const latitude = locationData?.latitude ?? (locationData?.lat ? parseFloat(locationData.lat) : 19.8762);
+  const longitude = locationData?.longitude ?? (locationData?.lng ? parseFloat(locationData.lng) : 75.3433);
+  const cityName = locationData?.cityName || locationData?.shortName || '';
+
+  // Placeholder trace simulation toggle for wizard progression (Chunk 5 will add live Leaflet.draw)
   const handleToggleMockTrace = () => {
     if (roofData.traced) {
       updateRoofData({ traced: false, areaSqM: 0, usableAreaSqM: 0 });
@@ -20,24 +26,24 @@ export default function RoofTraceStep({ roofData, updateRoofData }) {
           <PenTool size={24} />
         </div>
         <div>
-          <h2>Step 2: Trace Your Rooftop Outline</h2>
+          <h2>Step 2: Inspect Satellite Imagery & Trace Rooftop</h2>
           <p>
-            Use the interactive drawing tools on the satellite map below to outline your building's roof perimeter.
+            The interactive satellite map below is centered on your confirmed location. Zoom in to identify your building's roof.
           </p>
         </div>
       </div>
 
-      {/* Drawing Toolbar Mockup */}
+      {/* Drawing Toolbar (Ready for Chunk 5 Leaflet.draw integration) */}
       <div className="map-toolbar">
         <div className="toolbar-group">
           <button 
             type="button" 
             className={`toolbar-btn ${roofData.traced ? 'active' : ''}`}
             onClick={handleToggleMockTrace}
-            title="Click to simulate tracing roof polygon"
+            title="Click to simulate roof boundary confirmation"
           >
             <PenTool size={16} />
-            <span>{roofData.traced ? 'Polygon Traced ✓' : 'Draw Polygon (Mock)'}</span>
+            <span>{roofData.traced ? 'Roof Boundary Confirmed ✓' : 'Confirm Roof Outline (Mock)'}</span>
           </button>
           
           <button type="button" className="toolbar-btn" disabled={!roofData.traced}>
@@ -52,7 +58,7 @@ export default function RoofTraceStep({ roofData, updateRoofData }) {
             onClick={() => updateRoofData({ traced: false, areaSqM: 0, usableAreaSqM: 0 })}
           >
             <Trash2 size={16} />
-            <span>Delete</span>
+            <span>Clear Outline</span>
           </button>
 
           <button 
@@ -64,59 +70,14 @@ export default function RoofTraceStep({ roofData, updateRoofData }) {
             <span>Redraw</span>
           </button>
         </div>
-
-        <div className="map-layer-tag">
-          <Layers size={14} />
-          <span>Esri World Imagery (Satellite)</span>
-        </div>
       </div>
 
-      {/* Satellite Map Placeholder Canvas */}
-      <div className="satellite-map-placeholder">
-        <div className="map-overlay-guide">
-          {roofData.traced ? (
-            <div className="traced-polygon-indicator">
-              <div className="polygon-shape-svg">
-                <svg width="220" height="140" viewBox="0 0 220 140">
-                  <polygon 
-                    points="30,20 190,30 170,120 40,110" 
-                    fill="rgba(16, 185, 129, 0.35)" 
-                    stroke="#10b981" 
-                    strokeWidth="3" 
-                    strokeDasharray="4 2"
-                  />
-                  <circle cx="30" cy="20" r="5" fill="#f59e0b" />
-                  <circle cx="190" cy="30" r="5" fill="#f59e0b" />
-                  <circle cx="170" cy="120" r="5" fill="#f59e0b" />
-                  <circle cx="40" cy="110" r="5" fill="#f59e0b" />
-                </svg>
-              </div>
-              <div className="polygon-tag">
-                <CheckCircle size={15} />
-                <span>Roof Boundary Confirmed</span>
-              </div>
-            </div>
-          ) : (
-            <div className="empty-map-prompt">
-              <PenTool size={36} className="prompt-icon" />
-              <h3>Draw your roof outline on the map</h3>
-              <p>Click "Draw Polygon" in the toolbar above or click here to simulate roof tracing.</p>
-              <button 
-                type="button" 
-                className="btn-primary-sm"
-                onClick={handleToggleMockTrace}
-              >
-                Simulate Roof Outline
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Map Attribution Bar */}
-        <div className="map-attribution">
-          Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community
-        </div>
-      </div>
+      {/* Live Leaflet Satellite Map with Esri World Imagery */}
+      <RoofMap 
+        latitude={latitude} 
+        longitude={longitude} 
+        cityName={cityName} 
+      />
 
       {/* Area Metrics Cards */}
       <div className="area-metrics-grid">
@@ -143,13 +104,13 @@ export default function RoofTraceStep({ roofData, updateRoofData }) {
       {!roofData.traced ? (
         <div className="warning-banner">
           <AlertCircle size={18} />
-          <span><strong>Mandatory:</strong> Please trace your roof outline to proceed to calculation.</span>
+          <span><strong>Notice:</strong> Please confirm your roof outline before continuing to electricity inputs.</span>
         </div>
       ) : (
         <div className="info-banner">
           <Info size={18} />
           <div>
-            <strong>Usable Area Factor (75%):</strong> Accounts for panel spacing, walkways, shadow setbacks, vents, and roof parapet walls per MNRE standards.
+            <strong>Usable Area Factor (75%):</strong> Automatically accounts for panel clearances, walkways, shading buffers, and structural obstructions.
           </div>
         </div>
       )}

@@ -27,10 +27,16 @@ export default function App() {
 
   // State values collected across the step wizard
   const [locationData, setLocationData] = useState({
-    method: 'manual',
-    cityName: 'Chhatrapati Sambhajinagar',
+    latitude: 19.8762,
+    longitude: 75.3433,
     lat: '19.8762',
-    lng: '75.3433'
+    lng: '75.3433',
+    cityName: 'Chhatrapati Sambhajinagar',
+    displayName: 'Chhatrapati Sambhajinagar, Maharashtra, India',
+    shortName: 'Chhatrapati Sambhajinagar, Maharashtra',
+    source: 'manual',
+    method: 'manual',
+    rawAddress: {}
   });
 
   const [roofData, setRoofData] = useState({
@@ -62,7 +68,15 @@ export default function App() {
   }, []);
 
   const updateLocationData = (fields) => {
-    setLocationData(prev => ({ ...prev, ...fields }));
+    setLocationData(prev => ({ 
+      ...prev, 
+      ...fields,
+      // Keep lat/lng string and latitude/longitude number synchronized
+      lat: fields.lat ? fields.lat.toString() : (fields.latitude ? fields.latitude.toString() : prev.lat),
+      lng: fields.lng ? fields.lng.toString() : (fields.longitude ? fields.longitude.toString() : prev.lng),
+      latitude: fields.latitude !== undefined ? Number(fields.latitude) : (fields.lat ? parseFloat(fields.lat) : prev.latitude),
+      longitude: fields.longitude !== undefined ? Number(fields.longitude) : (fields.lng ? parseFloat(fields.lng) : prev.longitude)
+    }));
   };
 
   const updateRoofData = (fields) => {
@@ -73,8 +87,25 @@ export default function App() {
     setInputData(prev => ({ ...prev, ...fields }));
   };
 
+  // Check if current step is ready to advance
+  const isCurrentStepValid = () => {
+    if (currentStep === 1) {
+      return Boolean(
+        locationData && 
+        (locationData.latitude || locationData.lat) && 
+        (locationData.longitude || locationData.lng)
+      );
+    }
+    if (currentStep === 2) {
+      return Boolean(roofData && roofData.traced && roofData.areaSqM > 0);
+    }
+    return true;
+  };
+
   // Step Navigation Handlers
   const handleNext = () => {
+    if (!isCurrentStepValid()) return;
+
     if (currentStep < STEPS.length) {
       setCurrentStep(prev => prev + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -136,6 +167,7 @@ export default function App() {
           <RoofTraceStep 
             roofData={roofData} 
             updateRoofData={updateRoofData} 
+            locationData={locationData}
           />
         )}
 
@@ -172,7 +204,13 @@ export default function App() {
               <div></div>
             )}
 
-            <button type="button" className="btn-primary" onClick={handleNext}>
+            <button 
+              type="button" 
+              className="btn-primary" 
+              onClick={handleNext}
+              disabled={!isCurrentStepValid()}
+              title={!isCurrentStepValid() ? 'Please complete the required step items before continuing' : ''}
+            >
               <span>Continue to Next Step</span>
               <ArrowRight size={16} />
             </button>
