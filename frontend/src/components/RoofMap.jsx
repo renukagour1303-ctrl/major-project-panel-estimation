@@ -14,7 +14,8 @@ export default function RoofMap({
   cityName = '',
   zoom = 19,
   className = '',
-  // Chunk 5: drawing callbacks
+  initialGeoJSON = null,
+  // Chunk 5 & 6: drawing callbacks
   onPolygonDrawn = null,   // (geojson, latlngs) => void
   onPolygonCleared = null, // () => void
   // Refs exposed to parent for programmatic draw/edit/clear control
@@ -24,8 +25,19 @@ export default function RoofMap({
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const drawnItemsRef = useRef(null);   // L.FeatureGroup holding the polygon
-  const drawControlInstanceRef = useRef(null);
   const editHandlerRef = useRef(null);
+
+  // Keep callback refs updated to prevent stale closures in Leaflet map event listeners
+  const onPolygonDrawnRef = useRef(onPolygonDrawn);
+  const onPolygonClearedRef = useRef(onPolygonCleared);
+
+  useEffect(() => {
+    onPolygonDrawnRef.current = onPolygonDrawn;
+  }, [onPolygonDrawn]);
+
+  useEffect(() => {
+    onPolygonClearedRef.current = onPolygonCleared;
+  }, [onPolygonCleared]);
 
   // Normalize numeric coordinates
   const latNum = typeof latitude === 'number' ? latitude : (parseFloat(latitude) || 19.8762);
@@ -43,7 +55,7 @@ export default function RoofMap({
     }
     // Clear existing polygon before starting a fresh draw
     if (drawnItemsRef.current) drawnItemsRef.current.clearLayers();
-    if (onPolygonCleared) onPolygonCleared();
+    if (onPolygonClearedRef.current) onPolygonClearedRef.current();
 
     const handler = new L.Draw.Polygon(map, {
       shapeOptions: {
@@ -57,7 +69,7 @@ export default function RoofMap({
       allowIntersection: false
     });
     handler.enable();
-  }, [onPolygonCleared]);
+  }, []);
 
   const startEditing = useCallback(() => {
     const drawnItems = drawnItemsRef.current;
@@ -81,14 +93,14 @@ export default function RoofMap({
 
     // Re-emit geometry after edit
     const drawnItems = drawnItemsRef.current;
-    if (drawnItems && onPolygonDrawn) {
+    if (drawnItems && onPolygonDrawnRef.current) {
       const layers = drawnItems.getLayers();
       if (layers.length > 0) {
         const layer = layers[0];
-        onPolygonDrawn(layer.toGeoJSON(), layer.getLatLngs());
+        onPolygonDrawnRef.current(layer.toGeoJSON(), layer.getLatLngs());
       }
     }
-  }, [onPolygonDrawn]);
+  }, []);
 
   const clearPolygon = useCallback(() => {
     if (editHandlerRef.current) {
@@ -96,8 +108,8 @@ export default function RoofMap({
       editHandlerRef.current = null;
     }
     if (drawnItemsRef.current) drawnItemsRef.current.clearLayers();
-    if (onPolygonCleared) onPolygonCleared();
-  }, [onPolygonCleared]);
+    if (onPolygonClearedRef.current) onPolygonClearedRef.current();
+  }, []);
 
   // Expose programmatic controls to parent via drawControlRef
   useEffect(() => {
@@ -143,6 +155,23 @@ export default function RoofMap({
       drawnItems.addTo(map);
       drawnItemsRef.current = drawnItems;
 
+      // Restore initial GeoJSON if passed
+      if (initialGeoJSON) {
+        try {
+          const geoLayer = L.geoJSON(initialGeoJSON, {
+            style: {
+              color: '#10b981',
+              fillColor: '#10b981',
+              fillOpacity: 0.25,
+              weight: 2.5
+            }
+          });
+          geoLayer.eachLayer((l) => drawnItems.addLayer(l));
+        } catch (err) {
+          console.warn('Could not restore initial GeoJSON on map mount:', err);
+        }
+      }
+
       // 5. Center location pulse pin
       const centerIcon = L.divIcon({
         className: 'custom-map-center-pin',
@@ -178,24 +207,36 @@ export default function RoofMap({
           weight: 2.5
         });
         drawnItems.addLayer(layer);
-        if (onPolygonDrawn) {
-          onPolygonDrawn(layer.toGeoJSON(), layer.getLatLngs());
+        if (onPolygonDrawnRef.current) {
+          onPolygonDrawnRef.current(layer.toGeoJSON(), layer.getLatLngs());
         }
       });
 
-      // 7. Listen for draw:edited (polygon edited via L.EditToolbar)
+      // 7. Listen for draw:edited & editvertex
+      const notifyEdit = () => {
+        const layers = drawnItems.getLayers();
+        if (layers.length > 0 && onPolygonDrawnRef.current) {
+          const layer = layers[0];
+          onPolygonDrawnRef.current(layer.toGeoJSON(), layer.getLatLngs());
+        }
+      };
+
       map.on(L.Draw.Event.EDITED, (e) => {
         e.layers.eachLayer((layer) => {
-          if (onPolygonDrawn) {
-            onPolygonDrawn(layer.toGeoJSON(), layer.getLatLngs());
+          if (onPolygonDrawnRef.current) {
+            onPolygonDrawnRef.current(layer.toGeoJSON(), layer.getLatLngs());
           }
         });
       });
 
+      if (L.Draw.Event.EDITVERTEX) {
+        map.on(L.Draw.Event.EDITVERTEX, notifyEdit);
+      }
+
       // 8. Listen for draw:deleted
       map.on(L.Draw.Event.DELETED, () => {
-        if (drawnItems.getLayers().length === 0 && onPolygonCleared) {
-          onPolygonCleared();
+        if (drawnItems.getLayers().length === 0 && onPolygonClearedRef.current) {
+          onPolygonClearedRef.current();
         }
       });
 

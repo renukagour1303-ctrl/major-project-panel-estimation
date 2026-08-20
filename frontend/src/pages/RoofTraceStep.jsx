@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { PenTool, Edit3, Trash2, RotateCcw, Info, AlertCircle, CheckCircle2 } from 'lucide-react';
 import RoofMap from '../components/RoofMap.jsx';
+import { calculateRoofArea } from '../utils/areaCalculator.js';
 
 export default function RoofTraceStep({ roofData, updateRoofData, locationData }) {
   // ── Extract confirmed coordinates from Step 1 ───────────────────────────────
@@ -17,17 +18,23 @@ export default function RoofTraceStep({ roofData, updateRoofData, locationData }
   // ── Callbacks from RoofMap ───────────────────────────────────────────────────
 
   const handlePolygonDrawn = (geojson, latlngs) => {
-    // Store GeoJSON geometry in roofData for later use
-    // Actual area calculation is Chunk 6 (Turf.js); for now mark traced = true
-    updateRoofData({
-      traced: true,
-      polygonGeoJSON: geojson,
-      polygonLatLngs: latlngs,
-      // Reset area numbers – Chunk 6 will fill these in
-      areaSqM: 0,
-      usableAreaSqM: 0
-    });
-    setIsEditing(false);
+    // Calculate geodesic area & 75% setback usable area with Turf.js
+    const metrics = calculateRoofArea(geojson);
+
+    if (metrics.usableAreaSqM > 0) {
+      updateRoofData({
+        traced: true,
+        polygonGeoJSON: geojson,
+        polygonLatLngs: latlngs,
+        areaSqM: metrics.tracedAreaSqM,       // backward compatibility
+        tracedAreaSqM: metrics.tracedAreaSqM,
+        tracedAreaSqFt: metrics.tracedAreaSqFt,
+        usableAreaSqM: metrics.usableAreaSqM,
+        usableAreaSqFt: metrics.usableAreaSqFt
+      });
+    } else {
+      handlePolygonCleared();
+    }
   };
 
   const handlePolygonCleared = () => {
@@ -36,7 +43,10 @@ export default function RoofTraceStep({ roofData, updateRoofData, locationData }
       polygonGeoJSON: null,
       polygonLatLngs: null,
       areaSqM: 0,
-      usableAreaSqM: 0
+      tracedAreaSqM: 0,
+      tracedAreaSqFt: 0,
+      usableAreaSqM: 0,
+      usableAreaSqFt: 0
     });
     setIsEditing(false);
   };
@@ -70,7 +80,13 @@ export default function RoofTraceStep({ roofData, updateRoofData, locationData }
     setIsEditing(false);
   };
 
-  const hasPolygon = Boolean(roofData.traced && roofData.polygonGeoJSON);
+  const hasPolygon = Boolean(roofData.traced && roofData.polygonGeoJSON && (roofData.usableAreaSqM > 0 || roofData.areaSqM > 0));
+
+  // Determine displayed numbers
+  const tracedSqM = roofData.tracedAreaSqM || roofData.areaSqM || 0;
+  const tracedSqFt = roofData.tracedAreaSqFt || (tracedSqM ? Math.round(tracedSqM * 10.7639) : 0);
+  const usableSqM = roofData.usableAreaSqM || 0;
+  const usableSqFt = roofData.usableAreaSqFt || (usableSqM ? Math.round(usableSqM * 10.7639) : 0);
 
   return (
     <div className="step-content-card">
@@ -157,34 +173,46 @@ export default function RoofTraceStep({ roofData, updateRoofData, locationData }
         latitude={latitude}
         longitude={longitude}
         cityName={cityName}
+        initialGeoJSON={roofData.polygonGeoJSON}
         onPolygonDrawn={handlePolygonDrawn}
         onPolygonCleared={handlePolygonCleared}
         drawControlRef={drawControlRef}
       />
 
-      {/* ── Area Metrics Cards (Chunk 6 will populate real m² values) ─────────── */}
+      {/* ── Real-Time Area Summary (Chunk 6: Turf.js Geodesic Area & Setback) ─── */}
       <div className="area-metrics-grid">
         <div className="metric-box">
           <label>Traced Roof Area</label>
           <div className="metric-value">
-            <span>{roofData.areaSqM || '—'}</span>
-            {roofData.areaSqM > 0 && <small>m²</small>}
-            {roofData.areaSqM > 0 && (
-              <span className="sqft-sub">({Math.round(roofData.areaSqM * 10.7639)} sq.ft)</span>
-            )}
-            {!roofData.areaSqM && (
-              <span className="sqft-sub">Draw roof outline to calculate area</span>
+            {tracedSqM > 0 ? (
+              <>
+                <span>{tracedSqM.toLocaleString()}</span>
+                <small>m²</small>
+                <span className="sqft-sub">({tracedSqFt.toLocaleString()} sq ft)</span>
+              </>
+            ) : (
+              <>
+                <span>—</span>
+                <span className="sqft-sub">Draw roof outline to calculate area</span>
+              </>
             )}
           </div>
         </div>
 
         <div className="metric-box highlight">
-          <label>Usable Roof Area (75% Rule)</label>
+          <label>Usable Solar Area (75%)</label>
           <div className="metric-value emerald">
-            <span>{roofData.usableAreaSqM || '—'}</span>
-            {roofData.usableAreaSqM > 0 && <small>m²</small>}
-            {roofData.usableAreaSqM > 0 && (
-              <span className="sqft-sub">({Math.round(roofData.usableAreaSqM * 10.7639)} sq.ft)</span>
+            {usableSqM > 0 ? (
+              <>
+                <span>{usableSqM.toLocaleString()}</span>
+                <small>m²</small>
+                <span className="sqft-sub">({usableSqFt.toLocaleString()} sq ft)</span>
+              </>
+            ) : (
+              <>
+                <span>—</span>
+                <span className="sqft-sub">75% usable rooftop area after setback</span>
+              </>
             )}
           </div>
         </div>

@@ -12,6 +12,8 @@ import ElectricityInputsStep from './pages/ElectricityInputsStep.jsx';
 import CalculationStep from './pages/CalculationStep.jsx';
 import ResultsStep from './pages/ResultsStep.jsx';
 
+import { PANEL_OPTIONS } from './utils/panelConfig.js';
+
 const STEPS = [
   { id: 1, title: 'Location' },
   { id: 2, title: 'Trace Roof' },
@@ -41,16 +43,24 @@ export default function App() {
 
   const [roofData, setRoofData] = useState({
     traced: false,
-    polygonGeoJSON: null,    // set by Chunk 5 (RoofTraceStep)
+    polygonGeoJSON: null,    // set by Chunk 5
     polygonLatLngs: null,    // set by Chunk 5
     areaSqM: 0,              // computed by Chunk 6 (Turf.js)
-    usableAreaSqM: 0         // computed by Chunk 6 (areaSqM × 0.75)
+    tracedAreaSqM: 0,        // computed by Chunk 6 (Turf.js)
+    tracedAreaSqFt: 0,       // computed by Chunk 6 (tracedAreaSqM × 10.7639)
+    usableAreaSqM: 0,        // computed by Chunk 6 (tracedAreaSqM × 0.75)
+    usableAreaSqFt: 0        // computed by Chunk 6 (usableAreaSqM × 10.7639)
   });
 
   const [inputData, setInputData] = useState({
     monthlyBill: '3500',
     perUnitRate: '8.50',
-    panelWattage: 400
+    directMonthlyConsumption: '',
+    monthlyConsumptionKwh: 411.76,
+    dailyLoadKwh: 13.73,
+    consumptionSource: 'calculated',
+    panelWattage: 400,
+    selectedPanel: PANEL_OPTIONS[400]
   });
 
   // Verify backend health on mount
@@ -99,7 +109,21 @@ export default function App() {
       );
     }
     if (currentStep === 2) {
-      return Boolean(roofData && roofData.traced && roofData.areaSqM > 0);
+      return Boolean(
+        roofData && 
+        roofData.traced && 
+        roofData.polygonGeoJSON && 
+        roofData.usableAreaSqM > 0
+      );
+    }
+    if (currentStep === 3) {
+      return Boolean(
+        inputData &&
+        typeof inputData.monthlyConsumptionKwh === 'number' &&
+        inputData.monthlyConsumptionKwh > 0 &&
+        inputData.panelWattage &&
+        inputData.selectedPanel
+      );
     }
     return true;
   };
