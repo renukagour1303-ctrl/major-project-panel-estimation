@@ -1,0 +1,359 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react';
+
+import Navbar from '../components/Navbar.jsx';
+import StepIndicator from '../components/StepIndicator.jsx';
+import Footer from '../components/Footer.jsx';
+import ContactModal from '../components/ContactModal.jsx';
+import PricingModal from '../components/PricingModal.jsx';
+import VideoShowcase from '../components/VideoShowcase.jsx';
+import ReviewsSection from '../components/ReviewsSection.jsx';
+
+import LocationStep from './LocationStep.jsx';
+import RoofTraceStep from './RoofTraceStep.jsx';
+import ElectricityInputsStep from './ElectricityInputsStep.jsx';
+import CalculationStep from './CalculationStep.jsx';
+import ResultsStep from './ResultsStep.jsx';
+
+import { PANEL_OPTIONS } from '../utils/panelConfig.js';
+import { calculateSolarEstimate } from '../services/solarCalculationService.js';
+
+const STEPS = [
+  { id: 1, title: 'Location' },
+  { id: 2, title: 'Trace Roof' },
+  { id: 3, title: 'Inputs' },
+  { id: 4, title: 'Calculate' },
+  { id: 5, title: 'Results' }
+];
+
+export default function PublicCalculatorPage() {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [calculationResults, setCalculationResults] = useState(null);
+  const [calculationError, setCalculationError] = useState(null);
+  const [proPrice, setProPrice] = useState(499);
+
+  // Modals state
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+
+  // State values collected across the step wizard
+  const [locationData, setLocationData] = useState({
+    latitude: 19.8762,
+    longitude: 75.3433,
+    lat: '19.8762',
+    lng: '75.3433',
+    cityName: 'Chhatrapati Sambhajinagar',
+    displayName: 'Chhatrapati Sambhajinagar, Maharashtra, India',
+    shortName: 'Chhatrapati Sambhajinagar, Maharashtra',
+    source: 'manual',
+    method: 'manual',
+    rawAddress: {}
+  });
+
+  const [roofData, setRoofData] = useState({
+    traced: false,
+    polygonGeoJSON: null,    // set by Chunk 5
+    polygonLatLngs: null,    // set by Chunk 5
+    areaSqM: 0,              // computed by Chunk 6 (Turf.js)
+    tracedAreaSqM: 0,        // computed by Chunk 6 (Turf.js)
+    tracedAreaSqFt: 0,       // computed by Chunk 6 (tracedAreaSqM × 10.7639)
+    usableAreaSqM: 0,        // computed by Chunk 6 (tracedAreaSqM × 0.75)
+    usableAreaSqFt: 0        // computed by Chunk 6 (usableAreaSqM × 10.7639)
+  });
+
+  const [inputData, setInputData] = useState({
+    monthlyBill: '3500',
+    perUnitRate: '8.50',
+    directMonthlyConsumption: '',
+    monthlyConsumptionKwh: 411.76,
+    dailyLoadKwh: 13.73,
+    consumptionSource: 'calculated',
+    panelWattage: 400,
+    selectedPanel: PANEL_OPTIONS[400]
+  });
+
+  // Verify backend health on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const res = await axios.get(`${apiUrl}/health`);
+        if (res.data?.status === 'ok') {
+          setBackendOnline(true);
+        }
+      } catch (err) {
+        setBackendOnline(false);
+      }
+    };
+    checkBackend();
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/settings/pricing')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.proPrice) setProPrice(data.proPrice);
+      })
+      .catch((err) => console.error("Error fetching updated price:", err));
+  }, []);
+
+  const updateLocationData = (fields) => {
+    setLocationData(prev => ({ 
+      ...prev, 
+      ...fields,
+      // Keep lat/lng string and latitude/longitude number synchronized
+      lat: fields.lat ? fields.lat.toString() : (fields.latitude ? fields.latitude.toString() : prev.lat),
+      lng: fields.lng ? fields.lng.toString() : (fields.longitude ? fields.longitude.toString() : prev.lng),
+      latitude: fields.latitude !== undefined ? Number(fields.latitude) : (fields.lat ? parseFloat(fields.lat) : prev.latitude),
+      longitude: fields.longitude !== undefined ? Number(fields.longitude) : (fields.lng ? parseFloat(fields.lng) : prev.longitude)
+    }));
+  };
+
+  const updateRoofData = (fields) => {
+    setRoofData(prev => ({ ...prev, ...fields }));
+  };
+
+  const updateInputData = (fields) => {
+    setInputData(prev => ({ ...prev, ...fields }));
+  };
+
+  // Check if current step is ready to advance
+  const isCurrentStepValid = () => {
+    if (currentStep === 1) {
+      return Boolean(
+        locationData && 
+        (locationData.latitude || locationData.lat) && 
+        (locationData.longitude || locationData.lng)
+      );
+    }
+    if (currentStep === 2) {
+      return Boolean(
+        roofData && 
+        roofData.traced && 
+        roofData.polygonGeoJSON && 
+        roofData.usableAreaSqM > 0
+      );
+    }
+    if (currentStep === 3) {
+      return Boolean(
+        inputData &&
+        typeof inputData.monthlyConsumptionKwh === 'number' &&
+        inputData.monthlyConsumptionKwh > 0 &&
+        inputData.panelWattage &&
+        inputData.selectedPanel
+      );
+    }
+    return true;
+  };
+
+  // Step Navigation Handlers
+  const handleNext = () => {
+    if (!isCurrentStepValid()) return;
+
+    if (currentStep < STEPS.length) {
+      setCurrentStep(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleStepClick = (stepId) => {
+    if (stepId <= currentStep) {
+      setCurrentStep(stepId);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleCalculate = async () => {
+    // 1. Frontend validation: Ensure roof is traced
+    if (!roofData || !roofData.traced || !roofData.usableAreaSqM || roofData.usableAreaSqM <= 0) {
+      setCalculationError('Please trace your roof first.');
+      return;
+    }
+
+    // 2. Validate electricity input
+    if (!inputData || (!inputData.monthlyBill && !inputData.directMonthlyConsumption)) {
+      setCalculationError('Please provide a valid monthly electricity bill or consumption.');
+      return;
+    }
+
+    setCalculationError(null);
+    setIsCalculating(true);
+
+    try {
+      // 3. Prepare real payload for backend
+      const payload = {
+        latitude: locationData.latitude !== undefined ? locationData.latitude : parseFloat(locationData.lat),
+        longitude: locationData.longitude !== undefined ? locationData.longitude : parseFloat(locationData.lng),
+        cityName: locationData.cityName || locationData.shortName || '',
+        tracedRoofArea: roofData.tracedAreaSqM || roofData.areaSqM,
+        usableRoofArea: roofData.usableAreaSqM,
+        monthlyBill: inputData.monthlyBill,
+        tariffRate: inputData.perUnitRate,
+        directMonthlyConsumption: inputData.directMonthlyConsumption,
+        monthlyConsumptionKwh: inputData.monthlyConsumptionKwh,
+        selectedPanel: inputData.selectedPanel,
+        panelWattage: inputData.panelWattage
+      };
+
+      // 4. Send calculation request to backend
+      const result = await calculateSolarEstimate(payload);
+
+      if (result.success && result.data) {
+        // 5. Store structured results in parent state
+        setCalculationResults(result.data);
+        setCalculationError(null);
+        setIsCalculating(false);
+        setCurrentStep(5);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setCalculationError(result.message || "We couldn't complete the calculation right now. Please check your connection and try again.");
+        setIsCalculating(false);
+      }
+    } catch (err) {
+      setCalculationError("We couldn't complete the calculation right now. Please check your connection and try again.");
+      setIsCalculating(false);
+    }
+  };
+
+  const handleReset = () => {
+    setCalculationResults(null);
+    setCalculationError(null);
+    setCurrentStep(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="app-container">
+      {/* Header */}
+      <Navbar
+        backendOnline={backendOnline}
+        onOpenContact={() => setIsContactOpen(true)}
+        onOpenPricing={() => setIsPricingOpen(true)}
+      />
+
+      {/* Main Content */}
+      <main className="main-content">
+        {/* Step Indicator */}
+        <StepIndicator 
+          steps={STEPS} 
+          currentStep={currentStep} 
+          onStepClick={handleStepClick}
+        />
+
+        {/* Step Body */}
+        {currentStep === 1 && (
+          <LocationStep 
+            locationData={locationData} 
+            updateLocationData={updateLocationData} 
+          />
+        )}
+
+        {currentStep === 2 && (
+          <RoofTraceStep 
+            roofData={roofData} 
+            updateRoofData={updateRoofData} 
+            locationData={locationData}
+          />
+        )}
+
+        {currentStep === 3 && (
+          <ElectricityInputsStep 
+            inputData={inputData} 
+            updateInputData={updateInputData} 
+          />
+        )}
+
+        {currentStep === 4 && (
+          <CalculationStep 
+            locationData={locationData}
+            roofData={roofData}
+            inputData={inputData}
+            onCalculate={handleCalculate}
+            isCalculating={isCalculating}
+            calculationError={calculationError}
+          />
+        )}
+
+        {currentStep === 5 && (
+          <ResultsStep 
+            onReset={handleReset} 
+            calculationResults={calculationResults}
+            roofData={roofData}
+            locationData={locationData}
+            proPrice={proPrice}
+          />
+        )}
+
+        {/* Wizard Bottom Controls (for steps 1 to 3) */}
+        {currentStep < 4 && (
+          <div className="wizard-navigation-bar">
+            {currentStep > 1 ? (
+              <button type="button" className="btn-secondary" onClick={handlePrev}>
+                <ArrowLeft size={16} />
+                <span>Previous Step</span>
+              </button>
+            ) : (
+              <div></div>
+            )}
+
+            <button 
+              type="button" 
+              className="btn-primary" 
+              onClick={handleNext}
+              disabled={!isCurrentStepValid()}
+              title={!isCurrentStepValid() ? 'Please complete the required step items before continuing' : ''}
+            >
+              <span>Continue to Next Step</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Wizard Bottom Controls for Step 4 back navigation */}
+        {currentStep === 4 && (
+          <div className="wizard-navigation-bar">
+            <button type="button" className="btn-secondary" onClick={handlePrev}>
+              <ArrowLeft size={16} />
+              <span>Back to Inputs</span>
+            </button>
+          </div>
+        )}
+
+        {/* Verified Customer Reviews Section */}
+        <ReviewsSection />
+
+        {/* Website Demonstration Video Placeholder Section */}
+        <VideoShowcase />
+      </main>
+
+      {/* Modals */}
+      <ContactModal
+        isOpen={isContactOpen}
+        onClose={() => setIsContactOpen(false)}
+      />
+
+      <PricingModal
+        isOpen={isPricingOpen}
+        onClose={() => setIsPricingOpen(false)}
+        onOpenContact={() => setIsContactOpen(true)}
+        proPrice={proPrice}
+      />
+
+      {/* Footer */}
+      <Footer
+        onOpenContact={() => setIsContactOpen(true)}
+        onOpenPricing={() => setIsPricingOpen(true)}
+      />
+    </div>
+  );
+}

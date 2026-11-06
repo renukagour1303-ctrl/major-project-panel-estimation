@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { PenTool, Edit3, Trash2, RotateCcw, Info, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { PenTool, Edit3, Trash2, RotateCcw, Info, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import RoofMap from '../components/RoofMap.jsx';
 import { calculateRoofArea } from '../utils/areaCalculator.js';
 
@@ -116,6 +116,19 @@ export default function RoofTraceStep({ roofData, updateRoofData, locationData }
             <PenTool size={16} />
             <span>Draw Polygon</span>
           </button>
+
+          {/* 
+          // AUTO-TRACING DISABLED: Toolbar trigger commented out
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={() => drawControlRef.current?.autoTraceRoof()}
+            title="Auto-detect roof boundary and solar module positions with AI"
+          >
+            <Sparkles size={16} className="text-emerald" />
+            <span>AI Auto-Trace</span>
+          </button>
+          */}
 
           {/* Edit / Save */}
           <button

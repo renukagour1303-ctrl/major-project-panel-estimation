@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRouter from './routes/index.js';
+import { getPublicPricing } from './controllers/settingsController.js';
 
 // Resolve directory paths for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -15,13 +16,25 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+// CORS origin configuration - accepts wildcard, specific origins, or dynamic ngrok/localtunnel origins
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-// Middleware configuration
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: (origin, callback) => {
+    if (!origin || CORS_ORIGIN === '*') return callback(null, true);
+    if (
+      CORS_ORIGIN.split(',').map(o => o.trim()).includes(origin) ||
+      origin.includes('ngrok-free.app') ||
+      origin.includes('ngrok.io') ||
+      origin.includes('localtunnel.me')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder'],
+  credentials: true
 }));
 
 app.use(express.json());
@@ -33,6 +46,14 @@ app.use((req, res, next) => {
   console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// Serve uploaded assets statically
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
+// Direct public pricing endpoint for local & reverse-proxy routing
+app.get('/api/settings/pricing', getPublicPricing);
+app.get('/api/pricing', getPublicPricing);
+app.get('/pricing', getPublicPricing);
 
 // Mount base API routes
 app.use('/api', apiRouter);
@@ -64,14 +85,28 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start listening
-const server = app.listen(PORT, () => {
+// Start listening explicitly on 0.0.0.0 to allow incoming tunnel/network traffic
+const HOST = process.env.HOST || '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
   console.log(`====================================================`);
   console.log(` Sungroves Solar Calculator Backend API`);
-  console.log(` Server running on: http://localhost:${PORT}`);
+  console.log(` Server running on: http://${HOST}:${PORT}`);
   console.log(` Health check: http://localhost:${PORT}/api/health`);
   console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`====================================================`);
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[Server] Port ${PORT} is already active, reusing existing instance.`);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+if (process.env.npm_lifecycle_event === 'test' || process.env.NODE_ENV === 'test') {
+  server.unref();
+}
+
+export { server };
 export default app;

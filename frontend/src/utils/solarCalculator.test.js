@@ -222,16 +222,18 @@ describe('Deterministic Solar Calculation Engine Tests (Chunk 8)', () => {
     });
 
     assert.equal(result.isValid, true);
+    assert.equal(result.exactSystemSize, 3.33);
+    assert.equal(result.recommendedSystemSize, 5);
     assert.equal(result.billBasedSystemSizeKw, 3.33);
     assert.equal(result.maximumPanels, 22);
     assert.equal(result.maximumRoofSystemSizeKw, 8.8);
     assert.equal(result.limitingFactor, 'bill');
-    assert.equal(result.finalSystemSizeKw, 3.33);
-    assert.equal(result.numberOfPanels, 8); // 3.33 * 1000 / 400 = 8.325 -> 8 panels
-    assert.equal(result.totalPanelAreaSqM, 16.0); // 8 * 2.0 = 16 m²
-    assert.equal(result.grossCostRs, 183150); // 3.33 kW * 55000 = 183150
-    assert.equal(result.applicableSubsidyRs, 78000); // 3.33 kW > 3 kW -> max 78000
-    assert.equal(result.netCostRs, 105150); // 183150 - 78000 = 105150
+    assert.equal(result.finalSystemSizeKw, 5);
+    assert.equal(result.numberOfPanels, 13); // 5 * 1000 / 400 = 12.5 -> 13 panels
+    assert.equal(result.totalPanelAreaSqM, 26.0); // 13 * 2.0 = 26 m²
+    assert.equal(result.grossCostRs, 275000); // 5 kW * 55000 = 275000
+    assert.equal(result.applicableSubsidyRs, 78000); // 5 kW > 3 kW -> max 78000
+    assert.equal(result.netCostRs, 197000); // 275000 - 78000 = 197000
     assert.ok(result.monthlyGenerationKwh > 0);
     assert.ok(result.annualCO2SavedKg > 0);
   });

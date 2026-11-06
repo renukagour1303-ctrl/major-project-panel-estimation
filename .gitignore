@@ -29,10 +29,12 @@ out/
 
 # SQLite Database files
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 database/*.db
-backend/src/database/*.db
+backend/src/database/*.db*
 
 # Editor & OS directories
 .vscode/

@@ -13,6 +13,29 @@ export const GRID_EMISSION_FACTOR = 0.82; // kg CO2 / kWh
 export const TREE_CO2_FACTOR = 21;        // kg CO2 avoided per tree per year
 
 /**
+ * Standard commercially available solar kit sizes in kWp (Indian Market).
+ */
+export const STANDARD_KIT_SIZES = [1, 1.5, 2, 3, 5, 7.5, 10];
+
+/**
+ * Rounds up the exact required kWp to the nearest standard rooftop kit size.
+ * If exactKwp exceeds all standard sizes (> 10 kWp), returns exactKwp.
+ */
+export function roundToStandardSize(exactKwp) {
+  const num = typeof exactKwp === 'number' ? exactKwp : parseFloat(exactKwp);
+  if (isNaN(num) || num <= 0) return 0;
+  const rounded = STANDARD_KIT_SIZES.find(
+    size => size >= (num - 0.0001)
+  );
+  return rounded || num;
+}
+
+// Backward compatibility alias
+export function selectStandardKit(exactKw) {
+  return roundToStandardSize(exactKw);
+}
+
+/**
  * 1. Monthly Consumption Calculation
  * Direct kWh input takes precedence if provided and valid (> 0).
  * Otherwise calculated from bill ÷ tariff.
@@ -44,8 +67,9 @@ export function calculateDailyLoad(monthlyConsumptionKwh) {
 }
 
 /**
- * 3. Bill-Based System Size Calculation
- * System Size from Bill (kWp) = Daily Load / (Peak Sun Hours × 0.75)
+ * 3. Bill-Based System Size Calculation (= Exact Physical Requirement)
+ * Exact System Size (kWp) = Daily Load / (Peak Sun Hours × 0.75)
+ * Returns full precision (4 decimal places) to avoid rounding losses before kit selection.
  */
 export function calculateBillBasedSystemSize(dailyLoadKwh, peakSunHours) {
   const load = parseFloat(dailyLoadKwh);
@@ -56,7 +80,7 @@ export function calculateBillBasedSystemSize(dailyLoadKwh, peakSunHours) {
   }
 
   const billKw = load / (psh * PERFORMANCE_RATIO);
-  return Number(billKw.toFixed(2));
+  return Number(billKw.toFixed(4));
 }
 
 /**
@@ -312,7 +336,6 @@ export function calculateSolarSystem(inputs = {}) {
     customerType = 'residential'
   } = inputs;
 
-  // Validate solar resource data availability (Peak Sun Hours)
   const psh = parseFloat(peakSunHours);
   if (isNaN(psh) || psh <= 0) {
     return {
@@ -322,7 +345,6 @@ export function calculateSolarSystem(inputs = {}) {
     };
   }
 
-  // Validate panel configuration
   if (!selectedPanel || !selectedPanel.wattage || !selectedPanel.area) {
     return {
       isValid: false,
@@ -344,7 +366,11 @@ export function calculateSolarSystem(inputs = {}) {
   }
 
   // 2. System Sizing Options
-  const billBasedSystemSizeKw = calculateBillBasedSystemSize(dailyLoadKwh, psh);
+  // Step 1: Calculate exact system size (keep existing)
+  // exactSystemSize = dailyLoad / (peakSunHours × 0.75)
+  const exactSystemSize = Number((dailyLoadKwh / (psh * PERFORMANCE_RATIO)).toFixed(2));
+  const billBasedSystemSizeKw = exactSystemSize;
+
   const maximumPanels = calculateMaximumPanels(usableAreaSqM, selectedPanel.area);
   const maximumRoofSystemSizeKw = calculateRoofBasedSystemSize(maximumPanels, selectedPanel.wattage);
 
@@ -356,15 +382,32 @@ export function calculateSolarSystem(inputs = {}) {
     };
   }
 
-  // 3. Final System Size & Limiting Factor
-  const finalSystemSizeKw = calculateFinalSystemSize(billBasedSystemSizeKw, maximumRoofSystemSizeKw);
-  const limitingFactor = calculateLimitingFactor(billBasedSystemSizeKw, maximumRoofSystemSizeKw);
+  // Step 2: Round up to standard kit size (NEW)
+  // recommendedSystemSize = roundToStandardSize(exactSystemSize)
+  const recommendedSystemSize = roundToStandardSize(exactSystemSize);
+  const aboveStandardRange = exactSystemSize > 10;
 
-  // 4. Panel Count & Physical Footprint
+  // Roof feasibility check
+  const roofConstrainedKit = recommendedSystemSize > maximumRoofSystemSizeKw;
+  const feasibleSystemSize = Math.min(recommendedSystemSize, maximumRoofSystemSizeKw);
+
+  // Limiting factor: compare exact consumption requirement vs roof capacity
+  const limitingFactor = calculateLimitingFactor(exactSystemSize, maximumRoofSystemSizeKw);
+
+  // finalSystemSizeKw = standard kit size (or roof-feasible limit if constrained)
+  const finalSystemSizeKw = Number(feasibleSystemSize.toFixed(2));
+
+  // Step 3: Use recommendedSystemSize (or feasible system size) for ALL financial calculations:
+  // - Monthly generation
+  // - Monthly savings
+  // - Gross cost
+  // - Subsidy
+  // - Net cost
+  // - Payback period
+  // - CO2 calculations
   const numberOfPanels = calculatePanelCount(finalSystemSizeKw, selectedPanel.wattage, maximumPanels);
   const totalPanelAreaSqM = calculateTotalPanelArea(numberOfPanels, selectedPanel.area);
 
-  // 5. Energy Generation & Financials
   const monthlyGenerationKwh = calculateMonthlyGeneration(finalSystemSizeKw, psh);
   const rateNum = parseFloat(tariffRate) || 0;
   const monthlySavingsRs = calculateMonthlySavings(monthlyGenerationKwh, rateNum);
@@ -377,9 +420,19 @@ export function calculateSolarSystem(inputs = {}) {
   const annualSavingsRs = Number((monthlySavingsRs * 12).toFixed(2));
   const paybackResult = calculatePayback(netCostRs, monthlySavingsRs);
 
-  // 6. Environmental Impact
+  // 6. Environmental
   const annualCO2SavedKg = calculateAnnualCO2(monthlyGenerationKwh);
   const equivalentTrees = calculateTreeEquivalent(annualCO2SavedKg);
+
+  let kitNote = '';
+  if (aboveStandardRange) {
+    kitNote = `Requirement exceeds 10 kWp standard range. Custom engineering required for ${exactSystemSize.toFixed(2)} kWp.`;
+  } else if (roofConstrainedKit) {
+    kitNote = `Nearest standard kit (${recommendedSystemSize} kWp) exceeds available roof capacity. ` +
+              `Installation limited to ${feasibleSystemSize.toFixed(2)} kWp by roof area.`;
+  } else {
+    kitNote = `Nearest standard market kit size (${recommendedSystemSize} kWp selected for ${exactSystemSize.toFixed(2)} kWp requirement).`;
+  }
 
   return {
     isValid: true,
@@ -397,11 +450,17 @@ export function calculateSolarSystem(inputs = {}) {
     monthlyConsumptionKwh,
     dailyLoadKwh,
 
-    billBasedSystemSizeKw,
+    exactSystemSize: Number(exactSystemSize.toFixed(2)),
+    recommendedSystemSize,
+    aboveStandardRange,
+    roofConstrainedKit,
+    kitNote,
+
+    billBasedSystemSizeKw: Number(exactSystemSize.toFixed(2)),
     maximumPanels,
     maximumRoofSystemSizeKw,
 
-    finalSystemSizeKw,
+    finalSystemSizeKw: Number(finalSystemSizeKw.toFixed(2)),
     limitingFactor,
 
     numberOfPanels,

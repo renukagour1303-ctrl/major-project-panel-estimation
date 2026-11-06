@@ -1,13 +1,16 @@
 import React from 'react';
-import { Calculator, MapPin, Layers, Zap, SunMedium, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Calculator, MapPin, Layers, Zap, SunMedium, ArrowRight, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
 
 export default function CalculationStep({ 
   locationData, 
   roofData, 
   inputData, 
   onCalculate, 
-  isCalculating 
+  isCalculating,
+  calculationError
 }) {
+  const hasRoof = Boolean(roofData && roofData.traced && roofData.usableAreaSqM > 0);
+
   return (
     <div className="step-content-card">
       <div className="step-header-block">
@@ -22,6 +25,26 @@ export default function CalculationStep({
         </div>
       </div>
 
+      {/* Validation Warning when roof has not been traced */}
+      {!hasRoof && (
+        <div className="alert-box alert-error" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.5rem', color: '#991b1b' }}>
+          <AlertCircle size={20} className="text-danger" style={{ flexShrink: 0 }} />
+          <div>
+            <strong>Roof Missing:</strong> Please trace your roof first before calculating your solar estimate.
+          </div>
+        </div>
+      )}
+
+      {/* Backend / Calculation Error Display */}
+      {calculationError && (
+        <div className="alert-box alert-error" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.5rem', color: '#991b1b' }}>
+          <AlertCircle size={20} className="text-danger" style={{ flexShrink: 0 }} />
+          <div>
+            <strong>Calculation Error:</strong> {calculationError}
+          </div>
+        </div>
+      )}
+
       {/* Summary Review Grid */}
       <div className="summary-review-grid">
         {/* Item 1: Location */}
@@ -32,7 +55,7 @@ export default function CalculationStep({
           </div>
           <p className="review-main-val">{locationData.cityName || 'Chhatrapati Sambhajinagar'}</p>
           <span className="review-sub-val">
-            Coordinates: {locationData.lat || '19.8762'}° N, {locationData.lng || '75.3433'}° E
+            Coordinates: {locationData.lat || locationData.latitude || '19.8762'}° N, {locationData.lng || locationData.longitude || '75.3433'}° E
           </span>
         </div>
 
@@ -43,10 +66,12 @@ export default function CalculationStep({
             <h4>Roof Space</h4>
           </div>
           <p className="review-main-val">
-            {roofData.usableAreaSqM ? `${roofData.usableAreaSqM} m² usable` : '60 m² usable'}
+            {roofData.usableAreaSqM ? `${roofData.usableAreaSqM} m² usable` : 'No roof traced'}
           </p>
           <span className="review-sub-val">
-            Total Traced: {roofData.areaSqM ? `${roofData.areaSqM} m²` : '80 m²'} (75% Usable Factor applied)
+            {roofData.tracedAreaSqM || roofData.areaSqM 
+              ? `Total Traced: ${roofData.tracedAreaSqM || roofData.areaSqM} m² (75% Usable Factor applied)`
+              : 'Please trace roof boundary in Step 2'}
           </span>
         </div>
 
@@ -84,7 +109,7 @@ export default function CalculationStep({
         <div className="action-info">
           <div className="action-badge">
             <Sparkles size={16} />
-            <span>Deterministic Engine + AI Explanation</span>
+            <span>Deterministic Engine + Solar Data</span>
           </div>
           <h3>Ready to generate your solar assessment?</h3>
           <p>
@@ -101,7 +126,7 @@ export default function CalculationStep({
           {isCalculating ? (
             <span className="calculating-state">
               <span className="spinner-sm"></span>
-              Computing Estimation...
+              Calculating your solar estimate...
             </span>
           ) : (
             <>
